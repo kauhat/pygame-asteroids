@@ -9,6 +9,8 @@ class GameState:
     def __init__(self):
         self.pendingExit = False
 
+        self.input: controls.InputState = None
+
 
 class Game:
     def __init__(self, window):
@@ -18,14 +20,23 @@ class Game:
 
         self.state = GameState()
         self.entities = []
+        self.render_groups = {
+            "gameplay": pygame.sprite.RenderPlain()
+        }
 
     def add_entity(self, entity):
+        entity.init(self)
         self.entities.append(entity)
 
         return entity
 
-    def get_input(self, events):
-        frame_input = controls.InputState().apply_events(events)
+    def get_input(self):
+        events = pygame.event.get()
+        pressed = pygame.key.get_pressed()
+
+        frame_input = controls.InputState()
+        frame_input.apply_events(events)
+        frame_input.apply_pressed(pressed)
 
         return frame_input
 
@@ -34,8 +45,9 @@ class Game:
             print("Quitting...")
             self.state.pendingExit = True
 
-        if game_input.player_beep:
-            print("beep")
+        # Add current frame input map to state.
+        self.state.previous_input = self.state.input
+        self.state.input = game_input
 
     def tick(self, delta):
         for entity in self.entities:
@@ -45,8 +57,10 @@ class Game:
         # Clear the screen.
         self.window.fill((0, 0, 0))
 
-        for entity in self.entities:
-            entity.render(game.window)
+        # for entity in self.entities:
+        #    entity.render(game.state, game.window)
+
+        self.render_groups['gameplay'].draw(self.window)
 
         #
         pygame.display.update()
@@ -71,6 +85,8 @@ class Game:
 ###
 ###
 ###
+
+
 def setup_window(width=800, height=600):
     window = pygame.display.set_mode((width, height))
 
@@ -91,16 +107,30 @@ for i in range(amount):
     asteroid = entities.Asteroid()
     asteroid.position.x = randrange(width)
     asteroid.position.y = randrange(height)
+    asteroid.angle = randrange(360)
+
     asteroid.velocity = pygame.math.Vector2(10, 0).rotate(randrange(360))
+    asteroid.angular_velocity = randrange(-45, 45)
+
+    asteroid.add_to_group(game.render_groups['gameplay'])
 
     game.add_entity(asteroid)
+
+# Add player.
+player = entities.Player()
+player.position.x = width / 2
+player.position.y = height / 2
+
+player.add_to_group(game.render_groups['gameplay'])
+
+game.add_entity(player)
 
 # Main loop.
 while not game.state.pendingExit:
     game.frame_start()
 
     # Get and handle user input.
-    frame_input = game.get_input(pygame.event.get())
+    frame_input = game.get_input()
     game.handle_input(frame_input)
 
     # Update game entities.
