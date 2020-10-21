@@ -104,26 +104,29 @@ amount = 200
 width, height = game.window.get_size()
 
 for i in range(amount):
-    asteroid = entities.Asteroid()
-    asteroid.position.x = randrange(width)
-    asteroid.position.y = randrange(height)
-    asteroid.angle = randrange(360)
+    position = pygame.math.Vector2(randrange(width), randrange(height))
+    asteroid = entities.AsteroidFactory().create(game, position)
 
-    asteroid.velocity = pygame.math.Vector2(10, 0).rotate(randrange(360))
-    asteroid.angular_velocity = randrange(-45, 45)
+    transform = asteroid.get_component(entities.TransformComponent)
+    transform.velocity.x = 10
+    transform.velocity.rotate(randrange(360))
 
-    asteroid.add_to_group(game.render_groups['gameplay'])
+    transform.angle = randrange(360)
+    transform.angular_velocity = randrange(-45, 45)
+
+    sprite = asteroid.get_component(entities.SpriteComponent)
+    sprite.add_to_group(game.render_groups['gameplay'])
 
     game.add_entity(asteroid)
 
 # Add player.
-player = entities.Player()
-player.position.x = width / 2
-player.position.y = height / 2
+# player = entities.Player()
+# player.position.x = width / 2
+# player.position.y = height / 2
 
-player.add_to_group(game.render_groups['gameplay'])
+# player.add_to_group(game.render_groups['gameplay'])
 
-game.add_entity(player)
+# game.add_entity(player)
 
 # Main loop.
 while not game.state.pendingExit:
