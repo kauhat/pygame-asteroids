@@ -1,28 +1,21 @@
 import pygame
 from random import randrange
 
-import entities
 import controls
+import entities
+import game
+import state
 
 
-class GameState:
-    def __init__(self):
-        self.pendingExit = False
-
-        self.input: controls.InputState = None
-
-
-class Game:
+class Game():
     def __init__(self, window):
         self.clock = pygame.time.Clock()
         self.window = window
         self.max_fps = 144
 
-        self.state = GameState()
+        self.state = state.GameState()
         self.entities = []
-        self.render_groups = {
-            "gameplay": pygame.sprite.RenderPlain()
-        }
+        self.render_groups = {"gameplay": pygame.sprite.RenderPlain()}
 
     def add_entity(self, entity):
         entity.init(self)
@@ -46,10 +39,10 @@ class Game:
             self.state.pendingExit = True
 
         # Add current frame input map to state.
-        self.state.previous_input = self.state.input
+        self.state.input_previous = self.state.input
         self.state.input = game_input
 
-    def tick(self, delta):
+    def tick(self, delta: int):
         for entity in self.entities:
             entity.tick(self.state, delta)
 
@@ -57,9 +50,7 @@ class Game:
         # Clear the screen.
         self.window.fill((0, 0, 0))
 
-        # for entity in self.entities:
-        #    entity.render(game.state, game.window)
-
+        # Render sprite groups.
         self.render_groups['gameplay'].draw(self.window)
 
         #
@@ -82,6 +73,7 @@ class Game:
         # print("Remaining: " + str(time_remaining))
         # print("FPS: " + str(int(game.clock.get_fps())))
 
+
 ###
 ###
 ###
@@ -98,6 +90,7 @@ def setup_window(width=800, height=600):
 ###
 pygame.init()
 game = Game(setup_window())
+group = game.render_groups['gameplay']
 
 # Add asteroids.
 amount = 200
@@ -105,28 +98,22 @@ width, height = game.window.get_size()
 
 for i in range(amount):
     position = pygame.math.Vector2(randrange(width), randrange(height))
-    asteroid = entities.AsteroidFactory().create(game, position)
+    asteroid = entities.AsteroidFactory().create(game, group, position)
 
     transform = asteroid.get_component(entities.TransformComponent)
     transform.velocity.x = 10
-    transform.velocity.rotate(randrange(360))
+    transform.velocity.rotate_ip(randrange(360))
 
     transform.angle = randrange(360)
     transform.angular_velocity = randrange(-45, 45)
 
-    sprite = asteroid.get_component(entities.SpriteComponent)
-    sprite.add_to_group(game.render_groups['gameplay'])
-
     game.add_entity(asteroid)
 
 # Add player.
-# player = entities.Player()
-# player.position.x = width / 2
-# player.position.y = height / 2
+position = pygame.math.Vector2(width / 2, height / 2)
+player = entities.PlayerFactory().create(game, group, position)
 
-# player.add_to_group(game.render_groups['gameplay'])
-
-# game.add_entity(player)
+game.add_entity(player)
 
 # Main loop.
 while not game.state.pendingExit:

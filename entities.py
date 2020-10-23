@@ -1,9 +1,15 @@
 import os
 import pygame
+from pygame import transform
 from pygame.math import Vector2
+from pygame.sprite import Sprite, Group
+
+import state
+import game
+from game import BaseGame
 
 
-def rotate_center(image, rect, angle):
+def rotate_center(image: pygame.Surface, rect, angle):
     """Rotate a Surface, maintaining position."""
     rot_img = pygame.transform.rotate(image, angle)
     # Get a new rect and pass the center position of the old
@@ -12,70 +18,93 @@ def rotate_center(image, rect, angle):
     return rot_img, rect  # Return the new rect as well.
 
 
+class BaseComponent:
+    def tick(self, components, state: state.GameState, delta):
+        pass
+
+    def key(self):
+        return type(self)
+
+
 class Entity:
     def __init__(self):
         self.components = {}
 
+    def tick(self, state: state.GameState, delta: int):
+        for component in self.components.values():
+            if not isinstance(component, BaseComponent):
+                raise ValueError("Instance is not component")
+
+            component.tick(self.components, state, delta)
+
+    def init(self, state: state.GameState):
+        pass
+
     def add_component(self, component):
-        component_type = type(component)
+        if not isinstance(component, BaseComponent):
+            raise ValueError("Instance is not component")
+
+        #
+        component_type = component.key()
 
         if component_type in self.components:
-            raise "Component already exists."
+            raise KeyError("Component already exists for entity.")
 
+        #
         self.components[component_type] = component
 
     def get_component(self, component_type):
+        if not component_type in self.components:
+            raise KeyError("Component does not exist.")
+
         return self.components[component_type]
-
-    def tick(self, state, delta):
-        for component in self.components:
-            component.tick(self.components, state, delta)
-
-    def init(self, state):
-        pass
-
-
-class BaseComponent:
-    def tick(self, components, state, delta):
-        pass
 
 
 class SpriteComponent(BaseComponent):
-    def __init__(self, surface):
+    def __init__(self, surface: pygame.Surface):
         self.base_image = surface
 
-        self.sprite = pygame.sprite.Sprite()
+        self.sprite = Sprite()
         self.sprite.image = self.base_image
         self.sprite.rect = self.base_image.get_rect()
-        self.sprite.rect.center = (
-            self.sprite.rect.width / 2, self.sprite.rect.height / 2)
+        # self.sprite.rect.center = (int(self.sprite.rect.width / 2),
+        #                            int(self.sprite.rect.height / 2))
 
     def add_to_group(self, group):
         group.add(self.sprite)
 
-    def tick(self, components, state, delta):
+    def tick(self, components, state: state.GameState, delta: int):
         # Update sprite if entity has transform.
-        if isinstance(self, TransformComponent):
-            self.sprite.image, self.sprite.rect = rotate_center(self.base_image, self.sprite.rect, self.angle)
+        if TransformComponent in components:
+            transform = components[TransformComponent]
 
-            self.sprite.rect.y = self.position.y
-            self.sprite.rect.x = self.position.x
+            #
+            self.sprite.image, self.sprite.rect = rotate_center(
+                self.base_image, self.sprite.rect, -transform.angle)
+
+            self.sprite.rect.centerx = transform.position.x
+            self.sprite.rect.centery = transform.position.y
 
 
 class TransformComponent(BaseComponent):
     def __init__(self, position: Vector2 = Vector2()):
+
         self.position = position
         self.velocity = pygame.math.Vector2()
-        self.drag = 1
+        self.drag = 1.0
 
-        self.angle = 0
-        self.angular_velocity = 0
+        self.angle = 0.0
+        self.angular_velocity = 0.0
+        self.angular_drag = 1.0
 
-    def tick(self, components, state, delta):
+    def tick(self, components, state: state.GameState, delta):
         delta_seconds = float(delta / 1000)
 
         # Apply drag.
-        self.velocity *= (self.drag / delta_seconds)
+        self.velocity *= pow(self.drag, delta)
+
+        # Apply angular drag.
+        self.angular_velocity *= pow(self.angular_drag, delta)
 
         # Apply velocity.
         self.position += (self.velocity * delta_seconds)
@@ -85,30 +114,29 @@ class TransformComponent(BaseComponent):
         self.angle = self.angle % 360
 
 
-class PlayerComponent(BaseComponent):
+class PlayerControlComponent(BaseComponent):
     def __init__(self):
-        self.turning_speed = 180
+        self.turning_accelleration = 1000
         self.oof = 10
 
-    def tick(self, components, state, delta):
+    def tick(self, components, state: state.GameState, delta):
         delta_seconds = (delta / 1000)
 
         engine_impulse = state.input.player_forward - state.input.player_back
         turning_impulse = state.input.player_turn_right - state.input.player_turn_left
 
+        transform = components[TransformComponent]
+
         # Apply rotation.
-        self.angular_velocity = turning_impulse * self.turning_speed
-        # print(self.angle)
+        transform.angular_velocity += turning_impulse * (
+            self.turning_accelleration * delta_seconds)
 
         # Apply oomph.
-        direction = Vector2(1, 0).rotate(self.angle)
+        direction = Vector2(1, 0).rotate(transform.angle)
 
-        speed = (self.oof * engine_impulse) * direction
+        speed = self.oof * engine_impulse * direction
 
-        self.velocity += speed
-
-        #
-        self.position += self.velocity * delta_seconds
+        transform.velocity += speed
 
 
 class EntityFactory:
@@ -117,27 +145,44 @@ class EntityFactory:
 
 
 class AsteroidFactory(EntityFactory):
-    SURFACE = pygame.image.load(os.path.join('assets', 'asteroid-64.png'))
+    def create(self, game: BaseGame, group: Group, position: Vector2):
+        print("Creating asteroid...")
 
-    def create(self, game, position):
         asteroid = Entity()
+
+        #
         asteroid.add_component(TransformComponent(position))
-        asteroid.add_component(SpriteComponent(self.SURFACE))
+
+        #
+        surface = pygame.image.load(os.path.join('assets', 'asteroid-64.png'))
+
+        sprite = SpriteComponent(surface)
+        sprite.add_to_group(group)
+        asteroid.add_component(sprite)
 
         return asteroid
 
 
 class PlayerFactory(EntityFactory):
-    SURFACE = pygame.image.load(os.path.join('assets', 'ship.png'))
+    def create(self, game: BaseGame, group: Group, position: Vector2):
+        print("Creating player...")
 
-    def create(self, game, position):
         player = Entity()
 
+        #
         transform = TransformComponent(position)
-        transform.angle = -90
-        transform.drag = 0.9
-
+        transform.drag = 0.999
+        transform.angular_drag = 0.99
         player.add_component(transform)
-        player.add_component(SpriteComponent(self.SURFACE))
 
+        #
+        surface = pygame.image.load(os.path.join('assets', 'ship.png'))
 
+        sprite = SpriteComponent(surface)
+        sprite.add_to_group(group)
+        player.add_component(sprite)
+
+        #
+        player.add_component(PlayerControlComponent())
+
+        return player
