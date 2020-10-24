@@ -13,9 +13,9 @@ class Sprite:
 
 
 class Transform:
-    def __init__(self, position=Vector2()):
+    def __init__(self, position=Vector2(), angle: float = 0.0):
         self.position = position
-        self.angle: float = 0
+        self.angle = angle
 
 
 class Moveable:
@@ -25,6 +25,7 @@ class Moveable:
 
         self.angular_velocity = 0.0
         self.angular_drag = 1.0
+
 
 class Collideable:
     def __init__(self, rect: Rect):

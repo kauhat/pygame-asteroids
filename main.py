@@ -59,7 +59,10 @@ def run():
     clock = pygame.time.Clock()
     state = GameState()
 
+    # Create ECS world.
     world = esper.World()
+
+    # Add systems/processors.
     world.add_processor(systems.SpriteRenderSystem(window))
     world.add_processor(systems.MovementSystem())
     world.add_processor(systems.PlayerControlSystem())
@@ -83,6 +86,7 @@ def run():
     # Add player.
     position_p = pygame.math.Vector2(width / 2, height / 2)
     player = entities.PlayerFactory().create(world, position_p)
+
 
     # Main loop.
     while not state.pendingExit:

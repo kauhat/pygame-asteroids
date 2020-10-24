@@ -41,7 +41,7 @@ class PlayerFactory(EntityFactory):
         player = world.create_entity()
 
         #
-        world.add_component(player, Transform(position))
+        world.add_component(player, Transform(position, -90))
 
         #
         moveable = Moveable()
