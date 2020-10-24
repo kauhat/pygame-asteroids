@@ -2,5 +2,4 @@
     "python.linting.enabled": true,
     "python.pythonPath": "C:\\Users\\Jack Fletcher\\AppData\\Local\\Microsoft\\WindowsApps\\python.exe",
     "python.formatting.provider": "yapf",
-    "cSpell.enabled": true
 }
