@@ -1,9 +1,13 @@
+import copy
+from os.path import commonpath
+from random import randrange
+
 import esper
 import pygame
 from pygame import Surface, Rect
 from pygame.math import Vector2
 
-from components import Transform, Moveable, Sprite, Player
+import components as c
 from state import GameState
 
 
@@ -16,8 +20,117 @@ def rotate_center(image: Surface, rect: Rect, angle):
     return rot_img, rect  # Return the new rect as well.
 
 
+class ParticleEmissionSystem(esper.Processor):
+    def __init__(self):
+        self.count = 0
+        self.poof_texture = Surface((5,5))
+        self.poof_texture.fill((255,60,60))
+
+    def process(self, state: GameState, delta: int):
+        time = pygame.time.get_ticks()
+
+        query = self.world.get_components(c.ParticleEmitter, c.Transform)
+        for ent, (emitter, transform) in query:
+            if time > emitter.last_emission + emitter.emission_rate:
+                self.emit(emitter, copy.copy(transform.position),
+                          transform.angle)
+
+    def emit(self, emitter: c.ParticleEmitter, root_pos: Vector2,
+             root_angle: float):
+        particle = self.world.create_entity()
+
+        #
+        self.world.add_component(particle, c.Sprite(self.poof_texture))
+
+
+        #
+        position = root_pos + (emitter.offset.rotate(root_angle))
+
+        angle_offset = emitter.offset_angle.get_float()
+        angle = root_angle + angle_offset
+
+        transform = c.Transform(position, angle)
+        self.world.add_component(particle, transform)
+
+        #
+        moveable = c.Moveable()
+        moveable.velocity.x = emitter.velocity.get_float()
+        moveable.velocity.rotate_ip(transform.angle)
+
+        self.world.add_component(particle, moveable)
+
+        #
+        created_at = pygame.time.get_ticks()
+        expire_at = created_at + emitter.particle_lifetime.get_int()
+
+        lifetime = c.Lifetime(created_at, expire_at)
+        self.world.add_component(particle, c.Lifetime(created_at, expire_at))
+
+        self.count += 1
+
+        emitter.last_emission = created_at
+
+class LifetimeExpirySystem(esper.Processor):
+    def __init__(self):
+        pass
+
+    def process(self, state: GameState, delta: int):
+        time = pygame.time.get_ticks()
+
+        query = self.world.get_component(c.Lifetime)
+        for ent, (lifetime) in query:
+            if time > lifetime.expire_at:
+                if lifetime.auto_kill:
+                    if self.world.has_component(ent, c.Sprite):
+                        sprite = self.world.component_for_entity(ent, c.Sprite)
+
+                    self.world.delete_entity(ent, immediate=True)
+
+
+
 class SpriteRenderSystem(esper.Processor):
-    def __init__(self, window: Surface) -> None:
+    def __init__(self, window: Surface):
+        self.render_group: pygame.sprite.Group = pygame.sprite.RenderPlain()
+        self.window = window
+
+    def get_camera_transform(self) -> Vector2:
+        # Get camera position.
+        camera_list = self.world.get_components(c.Camera, c.Transform)
+        if len(camera_list) > 0:
+            ent, (camera, transform) = camera_list[0]
+            return transform
+
+        raise RuntimeError("No camera in world.")
+
+    def process(self, state: GameState, delta: int):
+        # Clear the screen.
+        self.window.fill((0, 0, 0))
+
+        camera_transform = self.get_camera_transform()
+        window_transform = c.Transform(Vector2(self.window.get_size()) / 2)
+
+        #
+        query = self.world.get_components(c.Sprite, c.Transform)
+        for ent, (sprite, transform) in query:
+            sprite.s.image, sprite.s.rect = rotate_center(
+                sprite.base_image, sprite.s.rect, -transform.angle)
+
+            screenspace = transform - camera_transform + window_transform
+
+            sprite.s.rect.centerx = screenspace.position.x
+            sprite.s.rect.centery = screenspace.position.y
+
+            self.render_group.add(sprite.s)
+
+        self.render_group.draw(self.window)
+
+        #
+        pygame.display.flip()
+
+
+# TODO: Finish this.
+class BlitterRenderSystem(esper.Processor):
+    def __init__(self, window: Surface):
         self.render_group: pygame.sprite.Group = pygame.sprite.RenderPlain()
         self.window = window
 
@@ -26,7 +139,7 @@ class SpriteRenderSystem(esper.Processor):
         self.window.fill((0, 0, 0))
 
         #
-        query = self.world.get_components(Sprite, Transform)
+        query = self.world.get_components(c.Sprite, c.Transform)
         for ent, (sprite, transform) in query:
             sprite.s.image, sprite.s.rect = rotate_center(
                 sprite.base_image, sprite.s.rect, -transform.angle)
@@ -46,7 +159,7 @@ class MovementSystem(esper.Processor):
     def process(self, state: GameState, delta: int):
         delta_seconds = (delta / 1000)
 
-        query = self.world.get_components(Transform, Moveable)
+        query = self.world.get_components(c.Transform, c.Moveable)
         for ent, (transform, moveable) in query:
             # Apply drag.
             moveable.velocity *= pow(moveable.drag, delta)
@@ -69,7 +182,7 @@ class PlayerControlSystem(esper.Processor):
         engine_impulse = state.input.player_forward - state.input.player_back
         turning_impulse = state.input.player_turn_right - state.input.player_turn_left
 
-        query = self.world.get_components(Player, Transform, Moveable)
+        query = self.world.get_components(c.Player, c.Transform, c.Moveable)
         for ent, (player, transform, moveable) in query:
             # Apply rotation.
             moveable.angular_velocity += turning_impulse * (

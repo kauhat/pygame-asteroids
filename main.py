@@ -2,7 +2,7 @@ import esper
 import pygame
 from random import randrange
 
-import components
+import components as c
 from controls import InputState
 import entities
 from state import GameState
@@ -25,7 +25,7 @@ def frame_start(state: GameState):
     state.frame_start_time = pygame.time.get_ticks()
 
 
-def frame_end(state: GameState):
+def frame_end(state: GameState, clock):
     state.frame_end_time = pygame.time.get_ticks()
 
     # Wait if time remaining to cap framerate.
@@ -35,9 +35,12 @@ def frame_end(state: GameState):
     if time_remaining > 0:
         pygame.time.delay(time_remaining)
 
-    # print("Real Time: " + str(frame_time))
-    # print("Remaining: " + str(time_remaining))
-    # print("FPS: " + str(int(game.clock.get_fps())))
+    if state.last_debug + 1000 < state.frame_end_time:
+        print("Real Time: " + str(frame_time))
+        print("Remaining: " + str(time_remaining))
+        print("FPS: " + str(int(clock.get_fps())))
+
+        state.last_debug = state.frame_end_time
 
 
 def get_input():
@@ -63,9 +66,11 @@ def run():
     world = esper.World()
 
     # Add systems/processors.
-    world.add_processor(systems.SpriteRenderSystem(window))
-    world.add_processor(systems.MovementSystem())
+    world.add_processor(systems.MovementSystem(), priority=2)
+    world.add_processor(systems.ParticleEmissionSystem())
+    world.add_processor(systems.LifetimeExpirySystem())
     world.add_processor(systems.PlayerControlSystem())
+    world.add_processor(systems.SpriteRenderSystem(window))
 
     # Add asteroids.
     amount = 200
@@ -75,18 +80,17 @@ def run():
         position = pygame.math.Vector2(randrange(width), randrange(height))
         asteroid = entities.AsteroidFactory().create(world, position)
 
-        moveable = world.component_for_entity(asteroid, components.Moveable)
+        moveable = world.component_for_entity(asteroid, c.Moveable)
         moveable.velocity.x = 10
         moveable.velocity.rotate_ip(randrange(360))
         moveable.angular_velocity = randrange(-45, 45)
 
-        transform = world.component_for_entity(asteroid, components.Transform)
+        transform = world.component_for_entity(asteroid, c.Transform)
         transform.angle = randrange(360)
 
     # Add player.
     position_p = pygame.math.Vector2(width / 2, height / 2)
     player = entities.PlayerFactory().create(world, position_p)
-
 
     # Main loop.
     while not state.pendingExit:
@@ -99,7 +103,7 @@ def run():
         delta = clock.tick()
         world.process(state, delta)
 
-        frame_end(state)
+        frame_end(state, clock)
 
     #
     pygame.quit()

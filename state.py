@@ -11,6 +11,7 @@ class GameState:
         #
         self.frame_start_time = 0
         self.frame_end_time = 0
+        self.last_debug = 0
 
     def update_input(self, input: InputState):
         if input.game_quit:

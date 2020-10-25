@@ -1,5 +1,5 @@
 {
     "python.linting.enabled": true,
-    "python.pythonPath": "C:\\Users\\Jack Fletcher\\AppData\\Local\\Microsoft\\WindowsApps\\python.exe",
+    "python.pythonPath": "C:\\Users\\Jack Fletcher\\AppData\\Local\\Microsoft\\WindowsApps\\python3.8.exe",
     "python.formatting.provider": "yapf",
 }

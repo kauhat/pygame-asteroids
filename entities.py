@@ -4,7 +4,7 @@ import esper
 import pygame
 from pygame.math import Vector2
 
-from components import Transform, Moveable, Sprite, Player
+import components as c
 
 
 class EntityFactory:
@@ -19,16 +19,16 @@ class AsteroidFactory(EntityFactory):
         asteroid = world.create_entity()
 
         #
-        world.add_component(asteroid, Transform(position))
+        world.add_component(asteroid, c.Transform(position))
 
         #
-        moveable = Moveable()
+        moveable = c.Moveable()
         world.add_component(asteroid, moveable)
 
         #
         surface = pygame.image.load(os.path.join('assets', 'asteroid-64.png'))
 
-        sprite = Sprite(surface)
+        sprite = c.Sprite(surface)
         world.add_component(asteroid, sprite)
 
         return asteroid
@@ -41,21 +41,28 @@ class PlayerFactory(EntityFactory):
         player = world.create_entity()
 
         #
-        world.add_component(player, Transform(position, -90))
+        world.add_component(player, c.Transform(position, -90))
 
         #
-        moveable = Moveable()
+        moveable = c.Moveable()
         moveable.drag = 0.999
-        moveable.angular_drag = 0.99
+        moveable.angular_drag = 0.9925
         world.add_component(player, moveable)
 
         #
         surface = pygame.image.load(os.path.join('assets', 'ship.png'))
 
-        sprite = Sprite(surface)
+        sprite = c.Sprite(surface)
         world.add_component(player, sprite)
 
         #
-        world.add_component(player, Player())
+        world.add_component(player, c.Player())
+
+        # Particles.
+        emitter = c.ParticleEmitter()
+        emitter.emission_rate = 50
+        world.add_component(player, emitter)
+
+        world.add_component(player, c.Camera())
 
         return player
