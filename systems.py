@@ -121,6 +121,8 @@ class SpriteRenderSystem(esper.Processor):
 
             chain = TransformChain()
 
+            # TODO: Fix this
+
             #screenspace = chain.stack(
             #    [window_transform, camera_transform, transform])
 
