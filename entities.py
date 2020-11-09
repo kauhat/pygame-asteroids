@@ -1,4 +1,5 @@
 import os
+import copy
 
 import esper
 import pygame
@@ -8,61 +9,77 @@ import components as c
 
 
 class EntityFactory:
-    def create(self, world: esper.World):
+    def __init__(self) -> None:
+        self.components = []
+        self.resources = {}
+
+    @property
+    def name(self):
+        raise NotImplementedError
+
+    def create(self, world: esper.World, amount=1):
+        print(f"Creating {self.name} x{amount}")
+
+        entities = []
+
+        for i in range(amount):
+            entities.append(world.create_entity())
+            self.build(world, entities[-1])
+
+        return entities
+
+    def build(self, world: esper.World, entity: int):
         raise NotImplementedError
 
 
 class AsteroidFactory(EntityFactory):
-    def create(self, world: esper.World, position: Vector2):
-        print("Creating asteroid...")
+    def __init__(self) -> None:
+        super().__init__()
 
-        asteroid = world.create_entity()
+        self.resources['surface'] = pygame.image.load(
+            os.path.join('assets', 'asteroid-64.png'))
 
-        #
-        world.add_component(asteroid, c.Transform(position))
+    @property
+    def name(self):
+        return "asteroid"
 
-        #
-        moveable = c.Moveable()
-        world.add_component(asteroid, moveable)
-
-        #
-        surface = pygame.image.load(os.path.join('assets', 'asteroid-64.png'))
-
-        sprite = c.Sprite(surface)
-        world.add_component(asteroid, sprite)
-
-        return asteroid
+    def build(self, world: esper.World, entity: int):
+        world.add_component(entity, c.Transform())
+        world.add_component(entity, c.Moveable())
+        world.add_component(entity, c.Sprite(self.resources['surface']))
 
 
 class PlayerFactory(EntityFactory):
-    def create(self, world: esper.World, position: Vector2):
-        print("Creating player...")
+    def __init__(self) -> None:
+        super().__init__()
 
-        player = world.create_entity()
+        self.resources['surface'] = pygame.image.load(
+            os.path.join('assets', 'ship.png'))
 
-        #
-        world.add_component(player, c.Transform(position, -90))
+    @property
+    def name(self):
+        return "player"
+
+    def build(self, world: esper.World, entity: int):
+        world.add_component(entity, c.Transform(None, -90))
 
         #
         moveable = c.Moveable()
         moveable.drag = 0.999
         moveable.angular_drag = 0.9925
-        world.add_component(player, moveable)
+        world.add_component(entity, moveable)
 
-        #
-        surface = pygame.image.load(os.path.join('assets', 'ship.png'))
-
-        sprite = c.Sprite(surface)
-        world.add_component(player, sprite)
-
-        #
-        world.add_component(player, c.Player())
+        world.add_component(entity, c.Sprite(self.resources['surface']))
+        world.add_component(entity, c.Player())
 
         # Particles.
-        emitter = c.ParticleEmitter()
-        emitter.emission_rate = 50
-        world.add_component(player, emitter)
+        # emitter = world.create_entity()
+        # world.add_component(emitter, c.Parent(entity))
+        # world.add_component(emitter, c.Transform())
 
-        world.add_component(player, c.Camera())
+        # emitter_source = c.ParticleEmitter()
+        # emitter_source.emission_rate = 50
+        # world.add_component(emitter, emitter_source)
 
-        return player
+        #
+        world.add_component(entity, c.Camera())

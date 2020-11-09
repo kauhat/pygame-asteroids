@@ -1,6 +1,8 @@
+from __future__ import annotations
 import copy
 from os.path import commonpath
 from random import randrange
+from typing import Optional, Union
 
 import esper
 import pygame
@@ -8,6 +10,7 @@ from pygame import Surface, Rect
 from pygame.math import Vector2
 
 import components as c
+from components import Transform
 from state import GameState
 
 
@@ -23,8 +26,8 @@ def rotate_center(image: Surface, rect: Rect, angle):
 class ParticleEmissionSystem(esper.Processor):
     def __init__(self):
         self.count = 0
-        self.poof_texture = Surface((5,5))
-        self.poof_texture.fill((255,60,60))
+        self.poof_texture = Surface((5, 5))
+        self.poof_texture.fill((255, 60, 60))
 
     def process(self, state: GameState, delta: int):
         time = pygame.time.get_ticks()
@@ -41,7 +44,6 @@ class ParticleEmissionSystem(esper.Processor):
 
         #
         self.world.add_component(particle, c.Sprite(self.poof_texture))
-
 
         #
         position = root_pos + (emitter.offset.rotate(root_angle))
@@ -70,6 +72,7 @@ class ParticleEmissionSystem(esper.Processor):
 
         emitter.last_emission = created_at
 
+
 class LifetimeExpirySystem(esper.Processor):
     def __init__(self):
         pass
@@ -87,15 +90,15 @@ class LifetimeExpirySystem(esper.Processor):
                     self.world.delete_entity(ent, immediate=True)
 
 
-
 class SpriteRenderSystem(esper.Processor):
     def __init__(self, window: Surface):
         self.render_group: pygame.sprite.Group = pygame.sprite.RenderPlain()
         self.window = window
 
-    def get_camera_transform(self) -> Vector2:
+    def get_camera_transform(self) -> c.Transform:
         # Get camera position.
         camera_list = self.world.get_components(c.Camera, c.Transform)
+
         if len(camera_list) > 0:
             ent, (camera, transform) = camera_list[0]
             return transform
@@ -106,16 +109,28 @@ class SpriteRenderSystem(esper.Processor):
         # Clear the screen.
         self.window.fill((0, 0, 0))
 
-        camera_transform = self.get_camera_transform()
-        window_transform = c.Transform(Vector2(self.window.get_size()) / 2)
+        camera_transform = copy.deepcopy(self.get_camera_transform())
+        camera_transform.position = camera_transform.position / -2
+        camera_transform.angle = camera_transform.angle * -1
+
+        window_transform = c.Transform(Vector2(self.window.get_size()) / 4)
 
         #
         query = self.world.get_components(c.Sprite, c.Transform)
         for ent, (sprite, transform) in query:
-            sprite.s.image, sprite.s.rect = rotate_center(
-                sprite.base_image, sprite.s.rect, -transform.angle)
 
-            screenspace = transform - camera_transform + window_transform
+            chain = TransformChain()
+
+            #screenspace = chain.stack(
+            #    [window_transform, camera_transform, transform])
+
+            worldspace = chain.stack([transform])
+            screenspace = c.Transform(
+                worldspace.position + window_transform.position, 0)
+
+            #
+            sprite.s.image, sprite.s.rect = rotate_center(
+                sprite.base_image, sprite.s.rect, -worldspace.angle)
 
             sprite.s.rect.centerx = screenspace.position.x
             sprite.s.rect.centery = screenspace.position.y
@@ -126,6 +141,20 @@ class SpriteRenderSystem(esper.Processor):
 
         #
         pygame.display.flip()
+
+
+class TransformChain:
+    def __init__(self, parent: Optional[TransformChain] = None) -> None:
+        self.parent = parent
+
+    def stack(self, stack: list[c.Transform]) -> c.Transform:
+        stacked = c.Transform()
+
+        for trans in stack:
+            stacked.position += trans.position.rotate(stacked.angle)
+            stacked.angle += trans.angle
+
+        return stacked
 
 
 # TODO: Finish this.
@@ -194,3 +223,18 @@ class PlayerControlSystem(esper.Processor):
             speed = player.oof * engine_impulse * direction
 
             moveable.velocity += speed
+
+
+class EntityTreeSystem(esper.Processor):
+    def __init__(self):
+        pass  #self.
+
+    def process(self, state: GameState, delta: int):
+        pass
+
+
+class UpdateInheritablesSystem(esper.Processor):
+    def process(self, state: GameState, delta: int):
+        query = self.world.get_components(c.Inheritable)
+        for ent, (inheritable) in query:
+            print(inheritable)

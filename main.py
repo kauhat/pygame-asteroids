@@ -35,12 +35,15 @@ def frame_end(state: GameState, clock):
     if time_remaining > 0:
         pygame.time.delay(time_remaining)
 
-    if state.last_debug + 1000 < state.frame_end_time:
-        print("Real Time: " + str(frame_time))
-        print("Remaining: " + str(time_remaining))
-        print("FPS: " + str(int(clock.get_fps())))
+    if state.show_frame_debug:
+        next_debug = state.last_frame_debug + 1000
 
-        state.last_debug = state.frame_end_time
+        if state.frame_end_time > next_debug:
+            print("Real Time: " + str(frame_time))
+            print("Remaining: " + str(time_remaining))
+            print("FPS: " + str(int(clock.get_fps())))
+
+            state.last_frame_debug = state.frame_end_time
 
 
 def get_input():
@@ -66,19 +69,26 @@ def run():
     world = esper.World()
 
     # Add systems/processors.
+    #world.add_processor(systems.EntityTreeSystem, priority=3)
+
     world.add_processor(systems.MovementSystem(), priority=2)
     world.add_processor(systems.ParticleEmissionSystem())
     world.add_processor(systems.LifetimeExpirySystem())
     world.add_processor(systems.PlayerControlSystem())
     world.add_processor(systems.SpriteRenderSystem(window))
 
+    # Add player.
+    player = entities.PlayerFactory().create(world)
+
     # Add asteroids.
-    amount = 200
     width, height = window.get_size()
 
-    for i in range(amount):
-        position = pygame.math.Vector2(randrange(width), randrange(height))
-        asteroid = entities.AsteroidFactory().create(world, position)
+    asteroids = entities.AsteroidFactory().create(world, 200)
+
+    for asteroid in asteroids:
+        transform = world.component_for_entity(asteroid, c.Transform)
+        transform.position.x = randrange(width)
+        transform.position.y = randrange(height)
 
         moveable = world.component_for_entity(asteroid, c.Moveable)
         moveable.velocity.x = 10
@@ -88,12 +98,8 @@ def run():
         transform = world.component_for_entity(asteroid, c.Transform)
         transform.angle = randrange(360)
 
-    # Add player.
-    position_p = pygame.math.Vector2(width / 2, height / 2)
-    player = entities.PlayerFactory().create(world, position_p)
-
     # Main loop.
-    while not state.pendingExit:
+    while not state.pending_exit:
         frame_start(state)
 
         # Get and handle user input.
@@ -101,9 +107,15 @@ def run():
 
         # Update game entities.
         delta = clock.tick()
-        world.process(state, delta)
+
+        if not state.is_paused:
+            world.process(state, delta)
 
         frame_end(state, clock)
+
+        #
+        #if state.frame_end_time > 500:
+        #    state.is_paused = True
 
     #
     pygame.quit()
