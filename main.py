@@ -7,6 +7,9 @@ from controls import InputState
 import entities
 from state import GameState
 import systems
+import systems.core
+import systems.render
+import systems.particle
 
 MAX_FPS = 144
 
@@ -71,11 +74,12 @@ def run():
     # Add systems/processors.
     #world.add_processor(systems.EntityTreeSystem, priority=3)
 
-    world.add_processor(systems.MovementSystem(), priority=2)
-    world.add_processor(systems.ParticleEmissionSystem())
-    world.add_processor(systems.LifetimeExpirySystem())
+    world.add_processor(systems.core.LifetimeExpirySystem())
+    world.add_processor(systems.core.EntityTreeSystem())
     world.add_processor(systems.PlayerControlSystem())
-    world.add_processor(systems.SpriteRenderSystem(window))
+    world.add_processor(systems.MovementSystem(), priority=2)
+    world.add_processor(systems.particle.ParticleEmissionSystem())
+    world.add_processor(systems.render.SpriteRenderSystem(window))
 
     # Add player.
     player = entities.PlayerFactory().create(world)
